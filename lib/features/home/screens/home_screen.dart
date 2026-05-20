@@ -29,12 +29,15 @@ class _HomeScreenState extends State<HomeScreen> {
   final UserService _userService = UserService();
   final GoogleMapsService _googleMapsService = GoogleMapsService();
   final NotificationService _notificationService = NotificationService();
-  
-  LatLng _currentP = const LatLng(-0.1807, -78.4678); // Quito por defecto para precarga
-  LatLng? _otherPersonP; 
-  LatLng? _destinationP; 
+
+  LatLng _currentP = const LatLng(
+    -0.1807,
+    -78.4678,
+  ); // Quito por defecto para precarga
+  LatLng? _otherPersonP;
+  LatLng? _destinationP;
   String? _activeRideId;
-  String? _otherPersonPhone; 
+  String? _otherPersonPhone;
   String? _otherPersonId;
   bool _isSearching = false;
   String _userRole = 'client'; // Valor por defecto seguro
@@ -42,9 +45,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isOnline = false;
   String _userName = "Usuario";
   String _userPhone = "";
-  double _estimatedPrice = 0.0; 
+  double _estimatedPrice = 0.0;
   StreamSubscription? _requestsSubscription;
   StreamSubscription? _rideSubscription;
+  StreamSubscription<LocationData>? _locationSubscription;
   Set<Marker> _markers = {};
   Set<Polyline> _polylines = {};
   StreamSubscription? _onlineDriversSubscription;
@@ -73,9 +77,15 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _loadCustomIcons() async {
     // Marcadores estándar por ahora para evitar problemas de fondo
-    _driverIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure);
-    _clientIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen);
-    _destinationIcon = BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed);
+    _driverIcon = BitmapDescriptor.defaultMarkerWithHue(
+      BitmapDescriptor.hueAzure,
+    );
+    _clientIcon = BitmapDescriptor.defaultMarkerWithHue(
+      BitmapDescriptor.hueGreen,
+    );
+    _destinationIcon = BitmapDescriptor.defaultMarkerWithHue(
+      BitmapDescriptor.hueRed,
+    );
     if (mounted) setState(() {});
   }
 
@@ -84,6 +94,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _requestsSubscription?.cancel();
     _rideSubscription?.cancel();
     _onlineDriversSubscription?.cancel();
+    _locationSubscription?.cancel();
     super.dispose();
   }
 
@@ -92,10 +103,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (user != null) {
       _userPhone = user.phoneNumber ?? "";
       final data = await _userService.getUserData(user.uid, _userRole);
-      
+
       setState(() {
         if (data != null) {
-          _userName = data['name'] ?? (_userRole == 'driver' ? "Conductor" : "Cliente");
+          _userName =
+              data['name'] ?? (_userRole == 'driver' ? "Conductor" : "Cliente");
         }
         if (_userRole == 'client') {
           _listenForOnlineDrivers();
@@ -108,7 +120,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _listenForOnlineDrivers() {
     _onlineDriversSubscription?.cancel();
-    _onlineDriversSubscription = _rideService.getOnlineDrivers().listen((snapshot) {
+    _onlineDriversSubscription = _rideService.getOnlineDrivers().listen((
+      snapshot,
+    ) {
       if (_userRole == 'client' && mounted) {
         List<Marker> driverMarkers = [];
         for (var doc in snapshot.docs) {
@@ -116,14 +130,16 @@ class _HomeScreenState extends State<HomeScreen> {
           final lat = data['lat'];
           final lng = data['lng'];
           final isOnline = data['isOnline'] ?? false;
-          
+
           if (isOnline && lat != null && lng != null) {
-            driverMarkers.add(Marker(
-              markerId: MarkerId('driver_${doc.id}'),
-              position: LatLng(lat, lng),
-              icon: _driverIcon ?? BitmapDescriptor.defaultMarker,
-              anchor: const Offset(0.5, 0.5),
-            ));
+            driverMarkers.add(
+              Marker(
+                markerId: MarkerId('driver_${doc.id}'),
+                position: LatLng(lat, lng),
+                icon: _driverIcon ?? BitmapDescriptor.defaultMarker,
+                anchor: const Offset(0.5, 0.5),
+              ),
+            );
           }
         }
         setState(() {
@@ -136,35 +152,47 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _updateMarkers() {
     if (!mounted) return;
-    
+
     Set<Marker> newMarkers = {};
 
     // Marcador de posición actual
     if (_currentP != null) {
-      newMarkers.add(Marker(
-        markerId: const MarkerId('current_pos'),
-        position: _currentP!,
-        icon: _userRole == 'driver' ? (_driverIcon ?? BitmapDescriptor.defaultMarker) : (_clientIcon ?? BitmapDescriptor.defaultMarker),
-        anchor: const Offset(0.5, 0.5),
-      ));
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('current_pos'),
+          position: _currentP!,
+          icon: _userRole == 'driver'
+              ? (_driverIcon ?? BitmapDescriptor.defaultMarker)
+              : (_clientIcon ?? BitmapDescriptor.defaultMarker),
+          anchor: const Offset(0.5, 0.5),
+        ),
+      );
     }
 
     // Marcador de destino
     if (_destinationP != null) {
-      newMarkers.add(Marker(
-        markerId: const MarkerId('destination'),
-        position: _destinationP!,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueOrange),
-      ));
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('destination'),
+          position: _destinationP!,
+          icon: BitmapDescriptor.defaultMarkerWithHue(
+            BitmapDescriptor.hueOrange,
+          ),
+        ),
+      );
     }
 
     // Marcador de la otra persona (si hay viaje activo)
     if (_otherPersonP != null) {
-      newMarkers.add(Marker(
-        markerId: const MarkerId('other_person'),
-        position: _otherPersonP!,
-        icon: _userRole == 'driver' ? (_clientIcon ?? BitmapDescriptor.defaultMarker) : (_driverIcon ?? BitmapDescriptor.defaultMarker),
-      ));
+      newMarkers.add(
+        Marker(
+          markerId: const MarkerId('other_person'),
+          position: _otherPersonP!,
+          icon: _userRole == 'driver'
+              ? (_clientIcon ?? BitmapDescriptor.defaultMarker)
+              : (_driverIcon ?? BitmapDescriptor.defaultMarker),
+        ),
+      );
     }
 
     // Agregar todas las motos online cercanas
@@ -181,11 +209,11 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_currentP != null && _destinationP != null) {
       // Primero un cálculo rápido (Haversine) para feedback inmediato
       final quickDistance = const dist.Distance().as(
-        dist.LengthUnit.Kilometer, 
-        dist.LatLng(_currentP!.latitude, _currentP!.longitude), 
-        dist.LatLng(_destinationP!.latitude, _destinationP!.longitude)
+        dist.LengthUnit.Kilometer,
+        dist.LatLng(_currentP!.latitude, _currentP!.longitude),
+        dist.LatLng(_destinationP!.latitude, _destinationP!.longitude),
       );
-      
+
       setState(() {
         _estimatedPrice = 1.0 + (quickDistance * 0.25);
       });
@@ -198,7 +226,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
       if (directions != null && mounted) {
         final distanceKm = directions['distance_value'] / 1000.0;
-        final polylinePoints = _googleMapsService.decodePolyline(directions['polyline_points']);
+        final polylinePoints = _googleMapsService.decodePolyline(
+          directions['polyline_points'],
+        );
 
         setState(() {
           _estimatedPrice = 1.0 + (distanceKm * 0.25);
@@ -228,10 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _mapController = controller;
               _mapController?.setMapStyle(_googleMapsStyle);
             },
-            initialCameraPosition: CameraPosition(
-              target: _currentP,
-              zoom: 15,
-            ),
+            initialCameraPosition: CameraPosition(target: _currentP, zoom: 15),
             markers: _markers,
             polylines: _polylines,
             myLocationEnabled: true,
@@ -240,7 +267,9 @@ class _HomeScreenState extends State<HomeScreen> {
             mapType: MapType.normal,
             onTap: (point) {
               if (!isDriver && _activeRideId == null && !_isSearching) {
-                setState(() { _destinationP = point; });
+                setState(() {
+                  _destinationP = point;
+                });
                 _updateMarkers();
                 _calculatePrice();
               }
@@ -282,20 +311,27 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const SizedBox(height: 30),
-                  const CircularProgressIndicator(color: colorNaranja, strokeWidth: 2),
+                  const CircularProgressIndicator(
+                    color: colorNaranja,
+                    strokeWidth: 2,
+                  ),
                   const SizedBox(height: 20),
                   Text(
                     'UBICANDO TU POSICIÓN...',
-                    style: GoogleFonts.outfit(color: Colors.white38, fontSize: 10, letterSpacing: 2),
+                    style: GoogleFonts.outfit(
+                      color: Colors.white38,
+                      fontSize: 10,
+                      letterSpacing: 2,
+                    ),
                   ),
                 ],
               ),
             ),
-          
+
           Positioned(
-            top: 0, 
-            left: 20, 
-            right: 20, 
+            top: 0,
+            left: 20,
+            right: 20,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(top: 10),
@@ -304,17 +340,29 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
 
-          if (!isDriver && _destinationP != null && !_isSearching && _activeRideId == null)
-            Positioned(bottom: 110, left: 20, right: 20, child: _buildPriceTag()),
+          if (!isDriver &&
+              _destinationP != null &&
+              !_isSearching &&
+              _activeRideId == null)
+            Positioned(
+              bottom: 110,
+              left: 20,
+              right: 20,
+              child: _buildPriceTag(),
+            ),
 
           Positioned(
-            bottom: 0, 
-            left: 20, 
-            right: 20, 
+            bottom: 0,
+            left: 20,
+            right: 20,
             child: SafeArea(
               child: Padding(
                 padding: const EdgeInsets.only(bottom: 20),
-                child: isDriver ? _buildDriverUI() : (_isSearching ? _buildSearchingCard() : _buildRequestButton()),
+                child: isDriver
+                    ? _buildDriverUI()
+                    : (_isSearching
+                          ? _buildSearchingCard()
+                          : _buildRequestButton()),
               ),
             ),
           ),
@@ -342,7 +390,9 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             child: ClipOval(
               child: Image.asset(
-                _userRole == 'driver' ? 'assets/images/moto_icon.png' : 'assets/images/user_icon.png',
+                _userRole == 'driver'
+                    ? 'assets/images/moto_icon.png'
+                    : 'assets/images/user_icon.png',
                 width: 35,
                 height: 35,
                 fit: BoxFit.contain,
@@ -355,19 +405,45 @@ class _HomeScreenState extends State<HomeScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Hola, $_userName', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(
+                  'Hola, $_userName',
+                  style: GoogleFonts.outfit(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                  ),
+                ),
                 Row(
                   children: [
                     const Icon(Icons.star, color: colorNaranja, size: 14),
                     const SizedBox(width: 4),
-                    const Text('4.9', style: TextStyle(color: colorNaranja, fontSize: 12, fontWeight: FontWeight.bold)),
+                    const Text(
+                      '4.9',
+                      style: TextStyle(
+                        color: colorNaranja,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(width: 8),
-                    Container(width: 4, height: 4, decoration: const BoxDecoration(color: Colors.white24, shape: BoxShape.circle)),
+                    Container(
+                      width: 4,
+                      height: 4,
+                      decoration: const BoxDecoration(
+                        color: Colors.white24,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                     const SizedBox(width: 8),
                     Flexible(
                       child: Text(
-                        isDriver ? (_isOnline ? 'En línea' : 'Desconectado') : 'Cliente Verificado', 
-                        style: const TextStyle(color: Colors.white70, fontSize: 12),
+                        isDriver
+                            ? (_isOnline ? 'En línea' : 'Desconectado')
+                            : 'Cliente Verificado',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -379,14 +455,21 @@ class _HomeScreenState extends State<HomeScreen> {
           // Icono de Ranking (Trofeo)
           IconButton(
             icon: const Icon(Icons.emoji_events, color: colorNaranja, size: 28),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RankingScreen())),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const RankingScreen()),
+            ),
           ),
           const SizedBox(width: 5),
           // Icono decorativo de rol
-          Icon(isDriver ? Icons.verified_user : Icons.person_pin_circle, color: isDriver ? colorNaranja : Colors.blueAccent, size: 20),
+          Icon(
+            isDriver ? Icons.verified_user : Icons.person_pin_circle,
+            color: isDriver ? colorNaranja : Colors.blueAccent,
+            size: 20,
+          ),
           const SizedBox(width: 10),
           IconButton(
-            icon: const Icon(Icons.logout, color: Colors.white70), 
+            icon: const Icon(Icons.logout, color: Colors.white70),
             onPressed: _showLogoutConfirmation,
           ),
         ],
@@ -407,15 +490,45 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _priceBtn("-0.5", () => setState(() => _estimatedPrice = (_estimatedPrice - 0.50).clamp(0.50, 100.0))),
-            _priceBtn("-0.1", () => setState(() => _estimatedPrice = (_estimatedPrice - 0.10).clamp(0.50, 100.0))),
+            _priceBtn(
+              "-0.5",
+              () => setState(
+                () => _estimatedPrice = (_estimatedPrice - 0.50).clamp(
+                  0.50,
+                  100.0,
+                ),
+              ),
+            ),
+            _priceBtn(
+              "-0.1",
+              () => setState(
+                () => _estimatedPrice = (_estimatedPrice - 0.10).clamp(
+                  0.50,
+                  100.0,
+                ),
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('TU OFERTA', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold)),
-                  Text('\$${_estimatedPrice.toStringAsFixed(2)}', style: GoogleFonts.outfit(color: colorNaranja, fontSize: 20, fontWeight: FontWeight.bold)),
+                  Text(
+                    'TU OFERTA',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white70,
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    '\$${_estimatedPrice.toStringAsFixed(2)}',
+                    style: GoogleFonts.outfit(
+                      color: colorNaranja,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -432,8 +545,18 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(15)),
-        child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(15),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -442,17 +565,46 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_activeRideId != null) {
       return Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: colorAzulOscuro, borderRadius: BorderRadius.circular(25), border: Border.all(color: colorNaranja)),
+        decoration: BoxDecoration(
+          color: colorAzulOscuro,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: colorNaranja),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('VIAJE EN CURSO', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold)),
+            Text(
+              'VIAJE EN CURSO',
+              style: GoogleFonts.outfit(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 15),
             Row(
               children: [
-                Expanded(child: ElevatedButton.icon(onPressed: _launchWhatsApp, icon: const Icon(Icons.message), label: const Text('WhatsApp'), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white))),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _launchWhatsApp,
+                    icon: const Icon(Icons.message),
+                    label: const Text('WhatsApp'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
                 const SizedBox(width: 10),
-                Expanded(child: ElevatedButton(onPressed: _finishRide, style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Text('FINALIZAR'))),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: _finishRide,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('FINALIZAR'),
+                  ),
+                ),
               ],
             ),
           ],
@@ -463,27 +615,53 @@ class _HomeScreenState extends State<HomeScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (_isOnline) 
+        if (_isOnline)
           Container(
-            margin: const EdgeInsets.only(bottom: 15), padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.green.withOpacity(0.5))),
-            child: Row(children: [const CircularProgressIndicator(color: Colors.green, strokeWidth: 2), const SizedBox(width: 20), Expanded(child: Text('Buscando pasajeros...', style: GoogleFonts.outfit(color: Colors.white)))]),
+            margin: const EdgeInsets.only(bottom: 15),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1E1E1E),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green.withOpacity(0.5)),
+            ),
+            child: Row(
+              children: [
+                const CircularProgressIndicator(
+                  color: Colors.green,
+                  strokeWidth: 2,
+                ),
+                const SizedBox(width: 20),
+                Expanded(
+                  child: Text(
+                    'Buscando pasajeros...',
+                    style: GoogleFonts.outfit(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
           ),
         SizedBox(
-          width: double.infinity, 
-          height: 60, 
+          width: double.infinity,
+          height: 60,
           child: ElevatedButton(
-            onPressed: _toggleOnline, 
+            onPressed: _toggleOnline,
             style: ElevatedButton.styleFrom(
-              backgroundColor: _isOnline ? colorAzulBotonSecundario : colorNaranja, 
-              foregroundColor: Colors.white, 
+              backgroundColor: _isOnline
+                  ? colorAzulBotonSecundario
+                  : colorNaranja,
+              foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(30),
-                side: _isOnline ? const BorderSide(color: Colors.white24) : BorderSide.none,
-              )
-            ), 
-            child: Text(_isOnline ? 'DESCONECTARSE' : 'PONERSE ONLINE', style: GoogleFonts.outfit(fontWeight: FontWeight.bold))
-          )
+                side: _isOnline
+                    ? const BorderSide(color: Colors.white24)
+                    : BorderSide.none,
+              ),
+            ),
+            child: Text(
+              _isOnline ? 'DESCONECTARSE' : 'PONERSE ONLINE',
+              style: GoogleFonts.outfit(fontWeight: FontWeight.bold),
+            ),
+          ),
         ),
       ],
     );
@@ -496,108 +674,155 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_userRole == 'driver') {
       // Mensaje profesional del conductor al cliente
       final user = FirebaseAuth.instance.currentUser;
-      final userData = await _userService.getUserData(user?.uid ?? "", 'driver');
+      final userData = await _userService.getUserData(
+        user?.uid ?? "",
+        'driver',
+      );
       final name = userData?['name'] ?? "Conductor";
       final plate = userData?['plate'] ?? "";
       final model = userData?['model'] ?? "";
-      
-      message = "Hola, soy $name, tu conductor de DeliciasGo. Voy en camino en una moto $model (Placa: $plate).";
+
+      message =
+          "Hola, soy $name, tu conductor de DeliciasGo. Voy en camino en una moto $model (Placa: $plate).";
     } else {
       // Mensaje del cliente al conductor
-      message = "Hola, soy tu pasajero de DeliciasGo. ¿En cuánto tiempo llegas?";
+      message =
+          "Hola, soy tu pasajero de DeliciasGo. ¿En cuánto tiempo llegas?";
     }
 
     final cleanPhone = _otherPersonPhone!.replaceAll(RegExp(r'[^0-9]'), '');
     final encodedMsg = Uri.encodeComponent(message);
     final url = "https://wa.me/$cleanPhone?text=$encodedMsg";
-    
+
     if (await canLaunchUrl(Uri.parse(url))) {
       await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
     }
   }
 
   void _toggleOnline() {
-    setState(() { 
-      _isOnline = !_isOnline; 
-      if (_isOnline) { 
-        _listenForRequests(); 
-      } else { 
-        _requestsSubscription?.cancel(); 
-      } 
+    setState(() {
+      _isOnline = !_isOnline;
+      if (_isOnline) {
+        _listenForRequests();
+      } else {
+        _requestsSubscription?.cancel();
+      }
     });
-    
+
     // Actualizar estado global inmediatamente
     final user = FirebaseAuth.instance.currentUser;
     if (user != null && _userRole == 'driver' && _currentP != null) {
       _rideService.updateGlobalDriverLocation(
-        user.uid, 
-        dist.LatLng(_currentP!.latitude, _currentP!.longitude), 
-        _isOnline
+        user.uid,
+        dist.LatLng(_currentP!.latitude, _currentP!.longitude),
+        _isOnline,
       );
     }
   }
 
   void _listenForRequests() {
     _requestsSubscription?.cancel();
-    _requestsSubscription = _rideService.getPendingRequests().listen((snapshot) async {
-      if (snapshot.docs.isNotEmpty && _isOnline && _activeRideId == null) {
-        final request = snapshot.docs.first;
+    _requestsSubscription = _rideService.getPendingRequests().listen((
+      snapshot,
+    ) async {
+      if (snapshot.docs.isEmpty || !_isOnline || _activeRideId != null) return;
+
+      for (final request in snapshot.docs) {
         final data = request.data() as Map<String, dynamic>;
+        final pickupLat = data['pickupLat'];
+        final pickupLng = data['pickupLng'];
+        if (pickupLat == null || pickupLng == null) continue;
 
-        // CALCULAR DISTANCIAS REALES (Plan Blaze)
-        double distToClient = 0;
-        double rideDist = 0;
-
-        if (_currentP != null && data['pickupLat'] != null) {
-          // Distancia del conductor al cliente
-          final toClientDir = await _googleMapsService.getDirections(
-            LatLng(_currentP!.latitude, _currentP!.longitude),
-            LatLng(data['pickupLat'], data['pickupLng']),
-          );
-          if (toClientDir != null) {
-            distToClient = toClientDir['distance_value'] / 1000.0;
+        final quickDistToClient = const dist.Distance().as(
+          dist.LengthUnit.Kilometer,
+          dist.LatLng(_currentP.latitude, _currentP.longitude),
+          dist.LatLng(pickupLat, pickupLng),
+        );
+        if (quickDistToClient > 5.0) {
+          if (kDebugMode) {
+            print(
+              'Solicitud ignorada por distancia: ${quickDistToClient.toStringAsFixed(1)} km',
+            );
           }
+          continue;
         }
 
-        if (data['pickupLat'] != null && data['destinationLat'] != null) {
-          // Distancia del viaje (Cliente a Destino)
+        // CALCULAR DISTANCIAS REALES (Plan Blaze)
+        double distToClient = quickDistToClient;
+        double rideDist = 0;
+
+        final toClientDir = await _googleMapsService.getDirections(
+          LatLng(_currentP.latitude, _currentP.longitude),
+          LatLng(pickupLat, pickupLng),
+        );
+        if (toClientDir != null) {
+          distToClient = toClientDir['distance_value'] / 1000.0;
+        }
+
+        final destinationLat = data['destinationLat'];
+        final destinationLng = data['destinationLng'];
+        if (destinationLat != null && destinationLng != null) {
+          rideDist = const dist.Distance().as(
+            dist.LengthUnit.Kilometer,
+            dist.LatLng(pickupLat, pickupLng),
+            dist.LatLng(destinationLat, destinationLng),
+          );
           final rideDir = await _googleMapsService.getDirections(
-            LatLng(data['pickupLat'], data['pickupLng']),
-            LatLng(data['destinationLat'], data['destinationLng']),
+            LatLng(pickupLat, pickupLng),
+            LatLng(destinationLat, destinationLng),
           );
           if (rideDir != null) {
             rideDist = rideDir['distance_value'] / 1000.0;
           }
         }
 
-        // Lógica de Radar (Plan Blaze): Solo mostrar si está a menos de 5km
         if (distToClient <= 5.0) {
           _showRideRequestModal(request.id, data, distToClient, rideDist);
-        } else {
-          if (kDebugMode) {
-            print('Solicitud ignorada por distancia: ${distToClient.toStringAsFixed(1)} km');
-          }
+          break;
         }
       }
     });
   }
 
-  void _showRideRequestModal(String rideId, Map<String, dynamic> data, double distToClient, double rideDist) {
+  void _showRideRequestModal(
+    String rideId,
+    Map<String, dynamic> data,
+    double distToClient,
+    double rideDist,
+  ) {
     double currentOfferPrice = (data['estimatedPrice'] ?? 0.0).toDouble();
     showModalBottomSheet(
-      context: context, 
+      context: context,
       backgroundColor: Colors.transparent,
       isDismissible: false,
       isScrollControlled: true,
       builder: (modalContext) => Container(
         padding: const EdgeInsets.all(25),
-        decoration: const BoxDecoration(color: Color(0xFF1A1A1A), borderRadius: BorderRadius.vertical(top: Radius.circular(30))),
+        decoration: const BoxDecoration(
+          color: Color(0xFF1A1A1A),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(10))),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
             const SizedBox(height: 20),
-            Text('¡NUEVA SOLICITUD!', style: GoogleFonts.outfit(color: colorNaranja, fontWeight: FontWeight.bold, fontSize: 18, letterSpacing: 1.2)),
+            Text(
+              '¡NUEVA SOLICITUD!',
+              style: GoogleFonts.outfit(
+                color: colorNaranja,
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                letterSpacing: 1.2,
+              ),
+            ),
             const SizedBox(height: 20),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -605,25 +830,53 @@ class _HomeScreenState extends State<HomeScreen> {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(data['clientName'] ?? 'Pasajero', style: GoogleFonts.outfit(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text(
+                      data['clientName'] ?? 'Pasajero',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     Row(
                       children: [
-                        const Icon(Icons.location_on, color: Colors.greenAccent, size: 16),
+                        const Icon(
+                          Icons.location_on,
+                          color: Colors.greenAccent,
+                          size: 16,
+                        ),
                         const SizedBox(width: 5),
-                        Text('A ${distToClient.toStringAsFixed(1)} km de ti', style: const TextStyle(color: Colors.greenAccent)),
+                        Text(
+                          'A ${distToClient.toStringAsFixed(1)} km de ti',
+                          style: const TextStyle(color: Colors.greenAccent),
+                        ),
                       ],
                     ),
                   ],
                 ),
-                Text('\$${data['estimatedPrice']?.toStringAsFixed(2) ?? "0.00"}', style: GoogleFonts.outfit(color: colorNaranja, fontSize: 32, fontWeight: FontWeight.bold)),
+                Text(
+                  '\$${data['estimatedPrice']?.toStringAsFixed(2) ?? "0.00"}',
+                  style: GoogleFonts.outfit(
+                    color: colorNaranja,
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ],
             ),
             const Divider(color: Colors.white12, height: 20),
             Row(
               children: [
-                const Icon(Icons.directions_bike, color: Colors.white70, size: 20),
+                const Icon(
+                  Icons.directions_bike,
+                  color: Colors.white70,
+                  size: 20,
+                ),
                 const SizedBox(width: 10),
-                Text('Recorrido: ${rideDist.toStringAsFixed(1)} km', style: const TextStyle(color: Colors.white70, fontSize: 14)),
+                Text(
+                  'Recorrido: ${rideDist.toStringAsFixed(1)} km',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
               ],
             ),
             const SizedBox(height: 15),
@@ -632,49 +885,111 @@ class _HomeScreenState extends State<HomeScreen> {
               builder: (context, setModalState) {
                 return Column(
                   children: [
-                    Text('TU CONTRAOFERTA:', style: GoogleFonts.outfit(color: Colors.white54, fontSize: 10)),
-                    Text('\$${currentOfferPrice.toStringAsFixed(2)}', style: GoogleFonts.outfit(color: colorNaranja, fontSize: 24, fontWeight: FontWeight.bold)),
+                    Text(
+                      'TU CONTRAOFERTA:',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                    Text(
+                      '\$${currentOfferPrice.toStringAsFixed(2)}',
+                      style: GoogleFonts.outfit(
+                        color: colorNaranja,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     const SizedBox(height: 10),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                       children: [
-                        _modalPriceBtn("+0.10", () => setModalState(() => currentOfferPrice += 0.10)),
-                        _modalPriceBtn("+0.50", () => setModalState(() => currentOfferPrice += 0.50)),
-                        _modalPriceBtn("+1.00", () => setModalState(() => currentOfferPrice += 1.00)),
+                        _modalPriceBtn(
+                          "+0.10",
+                          () => setModalState(() => currentOfferPrice += 0.10),
+                        ),
+                        _modalPriceBtn(
+                          "+0.50",
+                          () => setModalState(() => currentOfferPrice += 0.50),
+                        ),
+                        _modalPriceBtn(
+                          "+1.00",
+                          () => setModalState(() => currentOfferPrice += 1.00),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 20),
                     Row(
                       children: [
-                        Expanded(child: TextButton(onPressed: () => Navigator.pop(modalContext), child: Text('IGNORAR', style: TextStyle(color: Colors.grey[400], fontSize: 13)))),
+                        Expanded(
+                          child: TextButton(
+                            onPressed: () => Navigator.pop(modalContext),
+                            child: Text(
+                              'IGNORAR',
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ),
                         const SizedBox(width: 10),
                         Expanded(
                           child: ElevatedButton(
                             onPressed: () {
                               final user = FirebaseAuth.instance.currentUser;
-                              if (currentOfferPrice > (data['estimatedPrice'] ?? 0.0) && user != null) {
-                                _rideService.counterOffer(rideId, currentOfferPrice, user.uid, _userName, _userPhone);
+                              if (currentOfferPrice >
+                                      (data['estimatedPrice'] ?? 0.0) &&
+                                  user != null) {
+                                _rideService.counterOffer(
+                                  rideId,
+                                  currentOfferPrice,
+                                  user.uid,
+                                  _userName,
+                                  _userPhone,
+                                );
                                 Navigator.pop(modalContext);
-                                _startDriverRideListener(rideId, data['clientPhone'] ?? "", data['clientId']);
-                                _showSuccess("Contraoferta enviada, esperando respuesta...");
+                                _startDriverRideListener(
+                                  rideId,
+                                  data['clientPhone'] ?? "",
+                                  data['clientId'],
+                                );
+                                _showSuccess(
+                                  "Contraoferta enviada, esperando respuesta...",
+                                );
                               } else if (user != null) {
                                 Navigator.pop(modalContext);
-                                _acceptRide(rideId, data['clientPhone'] ?? "", data['clientId']);
+                                _acceptRide(
+                                  rideId,
+                                  data['clientPhone'] ?? "",
+                                  data['clientId'],
+                                );
                               }
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: colorNaranja, 
-                              padding: const EdgeInsets.symmetric(vertical: 12), 
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))
+                              backgroundColor: colorNaranja,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(15),
+                              ),
                             ),
-                            child: Text(currentOfferPrice > (data['estimatedPrice'] ?? 0.0) ? 'ENVIAR OFERTA' : 'ACEPTAR', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            child: Text(
+                              currentOfferPrice >
+                                      (data['estimatedPrice'] ?? 0.0)
+                                  ? 'ENVIAR OFERTA'
+                                  : 'ACEPTAR',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ],
                 );
-              }
+              },
             ),
           ],
         ),
@@ -687,8 +1002,18 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-        decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.white24)),
-        child: Text(label, style: const TextStyle(color: colorNaranja, fontWeight: FontWeight.bold)),
+        decoration: BoxDecoration(
+          color: Colors.white10,
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: Colors.white24),
+        ),
+        child: Text(
+          label,
+          style: const TextStyle(
+            color: colorNaranja,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }
@@ -702,7 +1027,11 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _startDriverRideListener(String rideId, String clientPhone, String clientId) {
+  void _startDriverRideListener(
+    String rideId,
+    String clientPhone,
+    String clientId,
+  ) {
     _rideSubscription?.cancel();
     _rideSubscription = _rideService.streamRideRequest(rideId).listen((doc) {
       if (doc.exists) {
@@ -716,11 +1045,17 @@ class _HomeScreenState extends State<HomeScreen> {
               if (data['pickupLat'] != null && data['pickupLng'] != null) {
                 _otherPersonP = LatLng(data['pickupLat'], data['pickupLng']);
               }
-              if (data['destinationLat'] != null && data['destinationLng'] != null) {
-                _destinationP = LatLng(data['destinationLat'], data['destinationLng']);
+              if (data['destinationLat'] != null &&
+                  data['destinationLng'] != null) {
+                _destinationP = LatLng(
+                  data['destinationLat'],
+                  data['destinationLng'],
+                );
               }
               if (_otherPersonP != null) {
-                _mapController?.animateCamera(CameraUpdate.newLatLng(_otherPersonP!));
+                _mapController?.animateCamera(
+                  CameraUpdate.newLatLng(_otherPersonP!),
+                );
               }
             }
           });
@@ -733,7 +1068,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_activeRideId != null) {
       await _rideService.updateRideStatus(_activeRideId!, 'completed');
       if (_otherPersonId != null) {
-        _showRatingDialog(_activeRideId!, _otherPersonId!); // Calificar al pasajero
+        _showRatingDialog(
+          _activeRideId!,
+          _otherPersonId!,
+        ); // Calificar al pasajero
       }
       _clearActiveRide();
       _showSuccess("Viaje completado ✅");
@@ -742,26 +1080,62 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _clearActiveRide() {
     _rideSubscription?.cancel();
-    setState(() { 
-      _activeRideId = null; 
-      _isOnline = true; 
-      _otherPersonP = null; 
-      _otherPersonPhone = null; 
-      _otherPersonId = null; 
-      _destinationP = null; 
-      _estimatedPrice = 0.0; 
+    setState(() {
+      _activeRideId = null;
+      _isOnline = true;
+      _otherPersonP = null;
+      _otherPersonPhone = null;
+      _otherPersonId = null;
+      _destinationP = null;
+      _estimatedPrice = 0.0;
       _polylines = {};
     });
   }
 
   Widget _buildRequestButton() {
-    return SizedBox(height: 60, child: ElevatedButton(onPressed: _requestRide, style: ElevatedButton.styleFrom(backgroundColor: colorNaranja, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30))), child: Text(_destinationP == null ? 'TOCA EL MAPA PARA TU DESTINO' : 'PEDIR MOTO', style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold))));
+    return SizedBox(
+      height: 60,
+      child: ElevatedButton(
+        onPressed: _requestRide,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: colorNaranja,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+          ),
+        ),
+        child: Text(
+          _destinationP == null ? 'TOCA EL MAPA PARA TU DESTINO' : 'PEDIR MOTO',
+          style: GoogleFonts.outfit(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+      ),
+    );
   }
 
   Widget _buildSearchingCard() {
     return Container(
-      padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: colorAzulOscuro, borderRadius: BorderRadius.circular(20), border: Border.all(color: colorNaranja.withOpacity(0.5))),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [const CircularProgressIndicator(color: colorNaranja), const SizedBox(height: 20), Text('Buscando...', style: GoogleFonts.outfit(color: Colors.white)), const SizedBox(height: 20), TextButton(onPressed: _cancelRide, child: const Text('CANCELAR', style: TextStyle(color: Colors.white54)))]),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: colorAzulOscuro,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: colorNaranja.withOpacity(0.5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(color: colorNaranja),
+          const SizedBox(height: 20),
+          Text('Buscando...', style: GoogleFonts.outfit(color: Colors.white)),
+          const SizedBox(height: 20),
+          TextButton(
+            onPressed: _cancelRide,
+            child: const Text(
+              'CANCELAR',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -771,26 +1145,39 @@ class _HomeScreenState extends State<HomeScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
       final rideId = await _rideService.createRideRequest(
-        clientId: user.uid, 
-        clientName: _userName, 
-        clientPhone: _userPhone, 
-        pickupLocation: dist.LatLng(_currentP!.latitude, _currentP!.longitude), 
-        destinationLocation: dist.LatLng(_destinationP!.latitude, _destinationP!.longitude), 
-        estimatedPrice: _estimatedPrice
+        clientId: user.uid,
+        clientName: _userName,
+        clientPhone: _userPhone,
+        pickupLocation: dist.LatLng(_currentP!.latitude, _currentP!.longitude),
+        destinationLocation: dist.LatLng(
+          _destinationP!.latitude,
+          _destinationP!.longitude,
+        ),
+        estimatedPrice: _estimatedPrice,
       );
       if (rideId != null) {
         setState(() => _activeRideId = rideId);
-        _rideSubscription = _rideService.streamRideRequest(rideId).listen((doc) {
+        _rideSubscription = _rideService.streamRideRequest(rideId).listen((
+          doc,
+        ) {
           if (doc.exists) {
             final data = doc.data() as Map<String, dynamic>;
             if (data['status'] == 'accepted') {
-               if (data['driverLat'] != null && data['driverLng'] != null) {
-                setState(() { _otherPersonP = LatLng(data['driverLat'], data['driverLng']); _otherPersonPhone = data['driverPhone']; _otherPersonId = data['driverId']; });
+              if (data['driverLat'] != null && data['driverLng'] != null) {
+                setState(() {
+                  _otherPersonP = LatLng(data['driverLat'], data['driverLng']);
+                  _otherPersonPhone = data['driverPhone'];
+                  _otherPersonId = data['driverId'];
+                });
               }
               if (!_isSearching) return;
-              _showDriverAccepted(data['driverName'] ?? "Conductor"); 
+              _showDriverAccepted(data['driverName'] ?? "Conductor");
             } else if (data['status'] == 'counter_offer' && _isSearching) {
-              _showCounterOfferDialog(rideId, data['driverName'] ?? "Conductor", (data['estimatedPrice'] ?? 0.0).toDouble());
+              _showCounterOfferDialog(
+                rideId,
+                data['driverName'] ?? "Conductor",
+                (data['estimatedPrice'] ?? 0.0).toDouble(),
+              );
             } else if (data['status'] == 'completed' && _userRole == 'client') {
               _showRatingDialog(rideId, data['driverId'] ?? "");
               _clearActiveRide();
@@ -800,22 +1187,47 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
   }
+
   void _showCounterOfferDialog(String rideId, String driverName, double price) {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: Text('NUEVA OFERTA', style: GoogleFonts.outfit(color: colorNaranja, fontWeight: FontWeight.bold)),
-        content: Text('$driverName ofrece realizar el viaje por \$${price.toStringAsFixed(2)}', style: const TextStyle(color: Colors.white)),
+        title: Text(
+          'NUEVA OFERTA',
+          style: GoogleFonts.outfit(
+            color: colorNaranja,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          '$driverName ofrece realizar el viaje por \$${price.toStringAsFixed(2)}',
+          style: const TextStyle(color: Colors.white),
+        ),
         actions: [
-          TextButton(onPressed: () { _cancelRide(); Navigator.pop(context); }, child: const Text('RECHAZAR', style: TextStyle(color: Colors.white54))),
+          TextButton(
+            onPressed: () {
+              _cancelRide();
+              Navigator.pop(context);
+            },
+            child: const Text(
+              'RECHAZAR',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
           ElevatedButton(
             onPressed: () {
               _rideService.confirmCounterOffer(rideId);
               Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: colorNaranja),
-            child: const Text('ACEPTAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'ACEPTAR',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -828,11 +1240,18 @@ class _HomeScreenState extends State<HomeScreen> {
         color: color.withOpacity(0.2),
         shape: BoxShape.circle,
         border: Border.all(color: color, width: 2),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 10, spreadRadius: 2)],
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.4),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
       ),
       child: Center(
         child: Container(
-          width: 40, height: 40,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           child: Icon(icon, color: Colors.black, size: 25),
         ),
@@ -844,17 +1263,44 @@ class _HomeScreenState extends State<HomeScreen> {
     double stars = 5.0;
     final commentController = TextEditingController();
     showDialog(
-      context: context, barrierDismissible: false,
+      context: context,
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) => AlertDialog(
           backgroundColor: colorAzulOscuro,
-          title: Text('¿Cómo estuvo tu viaje?', style: GoogleFonts.outfit(color: colorNaranja)),
+          title: Text(
+            '¿Cómo estuvo tu viaje?',
+            style: GoogleFonts.outfit(color: colorNaranja),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(mainAxisAlignment: MainAxisAlignment.center, children: List.generate(5, (i) => IconButton(icon: Icon(i < stars ? Icons.star : Icons.star_border, color: colorNaranja, size: 35), onPressed: () => setModalState(() => stars = i + 1.0)))),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  5,
+                  (i) => IconButton(
+                    icon: Icon(
+                      i < stars ? Icons.star : Icons.star_border,
+                      color: colorNaranja,
+                      size: 35,
+                    ),
+                    onPressed: () => setModalState(() => stars = i + 1.0),
+                  ),
+                ),
+              ),
               const SizedBox(height: 15),
-              TextField(controller: commentController, style: const TextStyle(color: Colors.white), decoration: const InputDecoration(hintText: 'Escribe un comentario...', hintStyle: TextStyle(color: Colors.white38), enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)))),
+              TextField(
+                controller: commentController,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'Escribe un comentario...',
+                  hintStyle: TextStyle(color: Colors.white38),
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.white24),
+                  ),
+                ),
+              ),
             ],
           ),
           actions: [
@@ -862,13 +1308,25 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () {
                 final user = FirebaseAuth.instance.currentUser;
                 if (user != null) {
-                  _rideService.submitRating(rideId: rideId, ratedUserId: ratedUserId, raterUserId: user.uid, rating: stars, comment: commentController.text);
+                  _rideService.submitRating(
+                    rideId: rideId,
+                    ratedUserId: ratedUserId,
+                    raterUserId: user.uid,
+                    rating: stars,
+                    comment: commentController.text,
+                  );
                 }
                 Navigator.pop(context);
                 _showSuccess("¡Gracias por tu calificación!");
               },
               style: ElevatedButton.styleFrom(backgroundColor: colorNaranja),
-              child: const Text('ENVIAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'ENVIAR',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         ),
@@ -877,14 +1335,50 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _cancelRide() async {
-    if (_activeRideId != null) { await _rideService.cancelRide(_activeRideId!); }
+    if (_activeRideId != null) {
+      await _rideService.cancelRide(_activeRideId!);
+    }
     _clearActiveRide();
     setState(() => _isSearching = false);
   }
 
   void _showDriverAccepted(String driverName) {
     setState(() => _isSearching = false);
-    showDialog(context: context, builder: (context) => AlertDialog(backgroundColor: colorAzulOscuro, title: Text('¡Moto Encontrada!', style: TextStyle(color: colorNaranja, fontWeight: FontWeight.bold)), content: Column(mainAxisSize: MainAxisSize.min, children: [Text('$driverName viene en camino.', style: const TextStyle(color: Colors.white)), const SizedBox(height: 20), ElevatedButton.icon(onPressed: _launchWhatsApp, icon: const Icon(Icons.message), label: const Text('Contactar por WhatsApp'), style: ElevatedButton.styleFrom(backgroundColor: colorNaranja, foregroundColor: Colors.white))]), actions: [TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK', style: TextStyle(color: colorNaranja)))]));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colorAzulOscuro,
+        title: Text(
+          '¡Moto Encontrada!',
+          style: TextStyle(color: colorNaranja, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              '$driverName viene en camino.',
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _launchWhatsApp,
+              icon: const Icon(Icons.message),
+              label: const Text('Contactar por WhatsApp'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: colorNaranja,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK', style: TextStyle(color: colorNaranja)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showLogoutConfirmation() {
@@ -907,7 +1401,10 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('CANCELAR', style: TextStyle(color: Colors.white54)),
+            child: const Text(
+              'CANCELAR',
+              style: TextStyle(color: Colors.white54),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -916,19 +1413,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 // Eliminar token antes de salir (Plan Blaze)
                 await _notificationService.deleteToken(user.uid, _userRole);
               }
-              Navigator.pop(context); 
+              Navigator.pop(context);
               await AuthService.instance.signOut();
               if (mounted) {
-                Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+                Navigator.of(
+                  context,
+                ).pushNamedAndRemoveUntil('/', (route) => false);
               }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: colorNaranja,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
             ),
             child: const Text(
               'CERRAR SESIÓN',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -936,13 +1440,19 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showSuccess(String message) { 
+  void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)), 
-        backgroundColor: colorNaranja
-      )
-    ); 
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        backgroundColor: colorNaranja,
+      ),
+    );
   }
 
   // Estilo oscuro para Google Maps
@@ -972,52 +1482,74 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _getLocationUpdates() async {
     try {
       bool _serviceEnabled = await _locationController.serviceEnabled();
-      if (!_serviceEnabled) { _serviceEnabled = await _locationController.requestService(); if (!_serviceEnabled) return; }
-      
+      if (!_serviceEnabled) {
+        _serviceEnabled = await _locationController.requestService();
+        if (!_serviceEnabled) return;
+      }
+
       final initialLocation = await _locationController.getLocation();
-      if (initialLocation.latitude != null && initialLocation.longitude != null) {
-        final initialPos = LatLng(initialLocation.latitude!, initialLocation.longitude!);
-        setState(() { 
-          _currentP = initialPos; 
+      if (initialLocation.latitude != null &&
+          initialLocation.longitude != null) {
+        final initialPos = LatLng(
+          initialLocation.latitude!,
+          initialLocation.longitude!,
+        );
+        setState(() {
+          _currentP = initialPos;
           _initialLocationSet = true;
         });
         _updateMarkers();
-        _mapController?.animateCamera(CameraUpdate.newLatLngZoom(_currentP, 15));
-        
+        _mapController?.animateCamera(
+          CameraUpdate.newLatLngZoom(_currentP, 15),
+        );
+
         // Esperamos un segundo extra para asegurar que el mapa renderizó la nueva posición
         await Future.delayed(const Duration(milliseconds: 1500));
         if (mounted) setState(() => _isMapLoading = false);
       }
 
-      _locationController.onLocationChanged.listen((LocationData currentLocation) {
-        if (currentLocation.latitude != null && currentLocation.longitude != null) {
-          final newPos = LatLng(currentLocation.latitude!, currentLocation.longitude!);
-          if (mounted) { 
-            setState(() { _currentP = newPos; }); 
+      _locationSubscription?.cancel();
+      _locationSubscription = _locationController.onLocationChanged.listen((
+        LocationData currentLocation,
+      ) {
+        if (currentLocation.latitude != null &&
+            currentLocation.longitude != null) {
+          final newPos = LatLng(
+            currentLocation.latitude!,
+            currentLocation.longitude!,
+          );
+          if (mounted) {
+            setState(() {
+              _currentP = newPos;
+            });
             _updateMarkers();
             if (!_initialLocationSet) {
-              _mapController?.animateCamera(CameraUpdate.newLatLngZoom(newPos, 15));
+              _mapController?.animateCamera(
+                CameraUpdate.newLatLngZoom(newPos, 15),
+              );
               _initialLocationSet = true;
             }
             if (_userRole == 'driver') {
               if (_activeRideId != null) {
                 _rideService.updateDriverLocation(
-                  _activeRideId!, 
-                  dist.LatLng(newPos.latitude, newPos.longitude)
+                  _activeRideId!,
+                  dist.LatLng(newPos.latitude, newPos.longitude),
                 );
               }
               final user = FirebaseAuth.instance.currentUser;
               if (user != null) {
                 _rideService.updateGlobalDriverLocation(
-                  user.uid, 
-                  dist.LatLng(newPos.latitude, newPos.longitude), 
-                  _isOnline
+                  user.uid,
+                  dist.LatLng(newPos.latitude, newPos.longitude),
+                  _isOnline,
                 );
               }
             }
           }
         }
       });
-    } catch (e) { print("Error ubicación: $e"); }
+    } catch (e) {
+      print("Error ubicación: $e");
+    }
   }
 }

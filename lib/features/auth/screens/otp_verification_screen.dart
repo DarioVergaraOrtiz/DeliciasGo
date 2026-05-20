@@ -4,11 +4,13 @@ import '../../../services/auth_service.dart';
 import 'registration_screen.dart';
 
 class OtpVerificationScreen extends StatefulWidget {
+  final String verificationId;
   final String phoneNumber;
   final String role;
 
   const OtpVerificationScreen({
     super.key,
+    required this.verificationId,
     required this.phoneNumber,
     required this.role,
   });
@@ -19,7 +21,7 @@ class OtpVerificationScreen extends StatefulWidget {
 
 class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
   final TextEditingController _otpController = TextEditingController();
-  final AuthService _authService = AuthService();
+  final AuthService _authService = AuthService.instance;
   bool _isLoading = false;
 
   @override
@@ -51,7 +53,7 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
               style: const TextStyle(color: Colors.white70, fontSize: 16),
             ),
             const SizedBox(height: 40),
-            
+
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E1E),
@@ -63,8 +65,8 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 keyboardType: TextInputType.number,
                 maxLength: 6,
                 style: const TextStyle(
-                  color: Colors.white, 
-                  fontSize: 24, 
+                  color: Colors.white,
+                  fontSize: 24,
                   letterSpacing: 15,
                   fontWeight: FontWeight.bold,
                 ),
@@ -72,17 +74,22 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
                 decoration: const InputDecoration(
                   counterText: "",
                   hintText: '000000',
-                  hintStyle: TextStyle(color: Colors.white10, letterSpacing: 15),
+                  hintStyle: TextStyle(
+                    color: Colors.white10,
+                    letterSpacing: 15,
+                  ),
                   border: InputBorder.none,
                   contentPadding: EdgeInsets.symmetric(vertical: 20),
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             if (_isLoading)
-              const Center(child: CircularProgressIndicator(color: Color(0xFFFF8C00)))
+              const Center(
+                child: CircularProgressIndicator(color: Color(0xFFFF8C00)),
+              )
             else
               SizedBox(
                 width: double.infinity,
@@ -112,9 +119,12 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
     if (_otpController.text.length < 6) return;
 
     setState(() => _isLoading = true);
-    
+
     try {
-      final user = await _authService.verifyCode(_otpController.text);
+      final user = await _authService.verifyCode(
+        widget.verificationId,
+        _otpController.text,
+      );
       if (user != null) {
         _showSuccess("¡Verificado con éxito!");
         if (!mounted) return;
@@ -141,7 +151,10 @@ class _OtpVerificationScreenState extends State<OtpVerificationScreen> {
 
   void _showSuccess(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: const Color(0xFFFF8C00)),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: const Color(0xFFFF8C00),
+      ),
     );
   }
 }
